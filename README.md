@@ -4,7 +4,7 @@ An interactive visualization exploring methane (CH₄) and nitrous oxide (N₂O)
 
 ## Live Demo
 
-Once deployed, your site will be available at: `https://[your-username].github.io/ghg-visualization/`
+Once deployed, your site will be available at: `https://ckgerteis/github.io/ghg-visualization/`
 
 ## Features
 
