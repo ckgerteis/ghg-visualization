@@ -542,7 +542,7 @@ const GHGVisualization = () => {
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-800 mb-1 text-center">
+              <h1 className="text-4xl font-bold text-gray-800 mb-1 text-center">
                 The Other Greenhouse Gases
               </h1>
               <p className="text-gray-500 text-center mb-2 text-sm">
