@@ -121,9 +121,20 @@ export default function MaritimeCorridorApp() {
       <header className="border-b bg-white">
         <div className="mx-auto max-w-7xl px-6 py-5">
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold">
-              Maritime Corridors: Well-to-Wake and Well-to-Wire Scenario Explorer
-            </h1>
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-semibold">
+                Maritime Corridors: Well-to-Wake and Well-to-Wire Scenario Explorer
+              </h1>
+              <a
+                href="/"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 hover:border-slate-400 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back to Main
+              </a>
+            </div>
             <p className="text-sm text-slate-600 max-w-4xl">
               This page is intentionally independent from the main visualization. It
               makes boundary choices explicit (TTW vs WTW vs WTWIRE) and exposes how
