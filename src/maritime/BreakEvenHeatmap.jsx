@@ -9,18 +9,19 @@ function colorScale(v, vmin, vmax) {
   const t = (v - vmin) / (vmax - vmin || 1);
   const x = Math.max(0, Math.min(1, t));
 
-  // center at 0
+  // Center at 0
   const mid = (0 - vmin) / (vmax - vmin || 1);
+
   if (x < mid) {
     const tt = x / (mid || 1);
-    // green to white
+    // green -> white
     const r = lerp(16, 255, tt);
     const g = lerp(185, 255, tt);
     const b = lerp(129, 255, tt);
     return `rgb(${r | 0},${g | 0},${b | 0})`;
   } else {
     const tt = (x - mid) / (1 - mid || 1);
-    // white to red
+    // white -> red
     const r = lerp(255, 185, tt);
     const g = lerp(255, 28, tt);
     const b = lerp(255, 28, tt);
@@ -28,7 +29,26 @@ function colorScale(v, vmin, vmax) {
   }
 }
 
-export default function BreakEvenHeatmap({ grid, marker }) {
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
+function normMarker(grid, m) {
+  const lx = grid.leakage;
+  const sy = grid.slip;
+
+  const x = (m.leakagePct - lx.min) / (lx.max - lx.min || 1);
+  const y = (m.slipPct - sy.min) / (sy.max - sy.min || 1);
+
+  return { x: clamp01(x), y: clamp01(y) };
+}
+
+/**
+ * Props:
+ * - grid: { leakage:{min,max,steps}, slip:{min,max,steps}, values:number[][], ... }
+ * - markers: [{ id, label, leakagePct, slipPct, ringClass, fillClass }]
+ */
+export default function BreakEvenHeatmap({ grid, markers = [] }) {
   const canvasRef = useRef(null);
 
   const stats = useMemo(() => {
@@ -76,20 +96,9 @@ export default function BreakEvenHeatmap({ grid, marker }) {
     ctx.putImageData(img, 0, 0);
   }, [grid, stats]);
 
-  const markerPos = useMemo(() => {
-    const lx = grid.leakage;
-    const sy = grid.slip;
-
-    const x =
-      (marker.leakagePct - lx.min) / (lx.max - lx.min || 1);
-    const y =
-      (marker.slipPct - sy.min) / (sy.max - sy.min || 1);
-
-    return {
-      x: Math.max(0, Math.min(1, x)),
-      y: Math.max(0, Math.min(1, y)),
-    };
-  }, [grid, marker]);
+  const markerPositions = useMemo(() => {
+    return markers.map((m) => ({ ...m, pos: normMarker(grid, m) }));
+  }, [grid, markers]);
 
   return (
     <div className="space-y-3">
@@ -100,16 +109,23 @@ export default function BreakEvenHeatmap({ grid, marker }) {
           height={420}
           className="block w-full h-auto"
         />
-        <div
-          className="absolute"
-          style={{
-            left: `${markerPos.x * 100}%`,
-            top: `${markerPos.y * 100}%`,
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          <div className="w-4 h-4 rounded-full border-2 border-slate-900 bg-white" />
-        </div>
+
+        {markerPositions.map((m) => (
+          <div
+            key={m.id}
+            className="absolute"
+            style={{
+              left: `${m.pos.x * 100}%`,
+              top: `${m.pos.y * 100}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+            title={`${m.label}: leakage ${m.leakagePct}%, slip ${m.slipPct}%`}
+          >
+            <div
+              className={`w-4 h-4 rounded-full border-2 ${m.ringClass} ${m.fillClass}`}
+            />
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-700">
