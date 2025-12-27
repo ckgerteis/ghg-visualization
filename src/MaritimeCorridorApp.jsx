@@ -126,7 +126,7 @@ export default function MaritimeCorridorApp() {
                 Maritime Corridors: Well-to-Wake and Well-to-Wire Scenario Explorer
               </h1>
               <a
-                href="/"
+                href="index.html"
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 hover:border-slate-400 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

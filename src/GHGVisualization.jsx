@@ -551,13 +551,13 @@ const GHGVisualization = () => {
             </div>
             <div className="flex gap-2 ml-2">
               <a 
-                href="/maritime-corridor.html"
+                href="maritime-corridor.html"
                 className="text-xs bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap"
               >
                 ⚓ Maritime
               </a>
               <a 
-                href="/references.html"
+                href="references.html"
                 className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -613,7 +613,7 @@ const GHGVisualization = () => {
         {/* References footer link */}
         <div className="mt-4 text-center">
           <a 
-            href="/references.html"
+            href="references.html"
             className="inline-block text-sm text-blue-600 hover:text-blue-800 underline"
             target="_blank"
             rel="noopener noreferrer"
