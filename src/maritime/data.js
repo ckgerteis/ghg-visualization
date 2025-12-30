@@ -65,9 +65,9 @@ export const DEFAULTS = {
   combustionCO2_g_per_MJ: 56, // natural gas combustion CO2, g/MJ (placeholder)
   processCO2_g_per_MJ_fuelUsed: 56, // assume same carbon intensity for process fuel (placeholder)
 
-  // Heatmap ranges
+  // Heatmap ranges - focused on realistic operating region
   heatmapRanges: {
-    leakagePct: { min: 0.0, max: 6.0, steps: 61 },
-    slipPct: { min: 0.0, max: 3.0, steps: 61 },
+    leakagePct: { min: 0.0, max: 3.0, steps: 61 },
+    slipPct: { min: 0.0, max: 2.0, steps: 61 },
   },
 };

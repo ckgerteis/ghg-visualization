@@ -60,9 +60,12 @@ export default function BreakEvenHeatmap({ grid, markers = [] }) {
         if (v > max) max = v;
       }
     }
-    // Clamp extremes so colors remain informative
-    const span = Math.max(Math.abs(min), Math.abs(max));
-    return { min: -span, max: span };
+    // Use a tighter symmetric range around zero for better contrast
+    // This makes the color gradient more sensitive to actual differences
+    const absMax = Math.max(Math.abs(min), Math.abs(max));
+    // Reduce the range slightly to enhance color variation
+    const scale = Math.min(absMax, absMax * 0.9);
+    return { min: -scale, max: scale };
   }, [grid]);
 
   useEffect(() => {
@@ -126,6 +129,23 @@ export default function BreakEvenHeatmap({ grid, markers = [] }) {
             />
           </div>
         ))}
+      </div>
+
+      {/* Color scale legend */}
+      <div className="flex items-center justify-center gap-2 text-xs">
+        <span className="text-slate-600">Better than coal</span>
+        <div className="flex h-6 rounded overflow-hidden border" style={{ width: "200px" }}>
+          {[...Array(50)].map((_, i) => {
+            const t = i / 49;
+            const v = stats.min + t * (stats.max - stats.min);
+            const color = colorScale(v, stats.min, stats.max);
+            return <div key={i} style={{ flex: 1, backgroundColor: color }} />;
+          })}
+        </div>
+        <span className="text-slate-600">Worse than coal</span>
+        <span className="text-slate-500 ml-2">
+          ({Math.round(stats.min)} to +{Math.round(stats.max)} gCO₂e/kWh)
+        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-700">
