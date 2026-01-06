@@ -71,3 +71,34 @@ export const DEFAULTS = {
     slipPct: { min: 0.0, max: 2.0, steps: 61 },
   },
 };
+
+// Simple named presets for common assumption sets. Keys are lower-case.
+export const PRESETS = {
+  default: {
+    label: "Default",
+    upstreamLeakPct: DEFAULTS.upstreamLeakPct,
+    processingEnergyPct: DEFAULTS.processingEnergyPct,
+    liquefactionEnergyPct: DEFAULTS.liquefactionEnergyPct,
+    regasEnergyPct: DEFAULTS.regasEnergyPct,
+    plantEfficiencyPct: DEFAULTS.plantEfficiencyPct,
+    coalBaseline_gPerKWh: DEFAULTS.coalBaseline_gPerKWh,
+  },
+  optimistic: {
+    label: "Optimistic",
+    upstreamLeakPct: 0.5,
+    processingEnergyPct: 1.0,
+    liquefactionEnergyPct: 6.0,
+    regasEnergyPct: 0.5,
+    plantEfficiencyPct: 60.0,
+    coalBaseline_gPerKWh: 850,
+  },
+  pessimistic: {
+    label: "Pessimistic",
+    upstreamLeakPct: 3.0,
+    processingEnergyPct: 4.0,
+    liquefactionEnergyPct: 12.0,
+    regasEnergyPct: 2.0,
+    plantEfficiencyPct: 40.0,
+    coalBaseline_gPerKWh: 1000,
+  },
+};

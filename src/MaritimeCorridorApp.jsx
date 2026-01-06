@@ -3,106 +3,10 @@ import {
   CORRIDORS,
   ENGINES,
   DEFAULTS,
+  PRESETS,
   GWP_PRESETS,
   clamp,
   formatNumber,
-} from "./maritime/data.js";
-import {
-  computeScenario,
-  computeHeatmapGrid,
-  coalComparatorLabel,
-} from "./maritime/calc.js";
-import StageBreakdownBar from "./maritime/StageBreakdownBar.jsx";
-import BreakEvenHeatmap from "./maritime/BreakEvenHeatmap.jsx";
-import { readUrlState, writeUrlState } from "./maritime/urlState.js";
-import { downloadCsv, downloadJson } from "./maritime/export.js";
-
-function defaultScenarioState() {
-  const e0 = ENGINES[0];
-  return {
-    boundary: "WTW", // TTW | WTW | WTWIRE
-    gwpHorizon: "100", // "20" | "100"
-    corridorId: CORRIDORS[0].id,
-    engineId: e0.id,
-
-    upstreamLeakPct: DEFAULTS.upstreamLeakPct,
-    methaneSlipPct: e0.defaultSlipPct,
-
-    plantEffPct: DEFAULTS.plantEfficiencyPct,
-    coalBaseline_gPerKWh: DEFAULTS.coalBaseline_gPerKWh,
-
-    detourPct: 0,
-    shippingRatePer1000nm: e0.shippingEnergyPctPer1000nm,
-
-    liquefactionPct: DEFAULTS.liquefactionEnergyPct,
-    processingPct: DEFAULTS.processingEnergyPct,
-    regasPct: DEFAULTS.regasEnergyPct,
-  };
-}
-
-function effectiveDistanceNm(corridor, detourPct) {
-  return corridor.distanceNm * (1 + clamp(detourPct, 0, 200) / 100);
-}
-
-function deriveScenario(s) {
-  const corridor = CORRIDORS.find((c) => c.id === s.corridorId) ?? CORRIDORS[0];
-  const engine = ENGINES.find((e) => e.id === s.engineId) ?? ENGINES[0];
-  const gwp = GWP_PRESETS[s.gwpHorizon] ?? GWP_PRESETS["100"];
-  const effNm = effectiveDistanceNm(corridor, s.detourPct);
-
-  const out = computeScenario({
-    boundary: s.boundary,
-    gwp,
-    corridor: { ...corridor, distanceNm: effNm },
-    engine: {
-      ...engine,
-      methaneSlipPct: s.methaneSlipPct,
-      shippingRatePer1000nm: s.shippingRatePer1000nm,
-    },
-    upstreamLeakPct: s.upstreamLeakPct,
-    processEnergy: {
-      liquefactionPct: s.liquefactionPct,
-      processingPct: s.processingPct,
-      regasPct: s.regasPct,
-    },
-    plantEfficiencyPct: s.plantEffPct,
-    coalBaseline_gPerKWh: s.coalBaseline_gPerKWh,
-  });
-
-  return {
-    corridor,
-    engine,
-    gwp,
-    effDistanceNm: effNm,
-    outputs: out,
-  };
-}
-
-function buildScenarioExport(label, s, derived) {
-  return {
-    label,
-    parameters: s,
-    derived: {
-      corridor: derived.corridor,
-      engine: derived.engine,
-      gwp: derived.gwp,
-      effectiveDistanceNm: derived.effDistanceNm,
-    },
-    outputs: derived.outputs,
-    exportedAt: new Date().toISOString(),
-  };
-}
-
-function breakdownCsvRows(label, derived) {
-  return derived.outputs.breakdown.map((d) => ({
-    scenario: label,
-    stage: d.stage,
-    co2_g: d.co2_g,
-    ch4_co2e_g: d.ch4_co2e_g,
-    total_stage_gco2e: (d.co2_g || 0) + (d.ch4_co2e_g || 0),
-  }));
-}
-
 export default function MaritimeCorridorApp() {
   const defaultA = useMemo(() => defaultScenarioState(), []);
   const defaultB = useMemo(() => {
@@ -114,6 +18,14 @@ export default function MaritimeCorridorApp() {
   const [scenarioA, setScenarioA] = useState(defaultA);
   const [scenarioB, setScenarioB] = useState(defaultB);
   const [surfaceFrom, setSurfaceFrom] = useState("A"); // which scenario defines heatmap surface
+  const [presetKeyA, setPresetKeyA] = useState("default");
+  const [presetKeyB, setPresetKeyB] = useState("default");
+  const [appliedPresetValuesA, setAppliedPresetValuesA] = useState(
+    PRESETS["default"] || DEFAULTS
+  );
+  const [appliedPresetValuesB, setAppliedPresetValuesB] = useState(
+    PRESETS["default"] || DEFAULTS
+  );
 
   // Initialize from URL once
   useEffect(() => {
@@ -121,19 +33,58 @@ export default function MaritimeCorridorApp() {
     setScenarioA(init.scenarioA);
     setScenarioB(init.scenarioB);
     setSurfaceFrom(init.surfaceFrom);
+    setPresetKeyA(init.presetKeyA || "default");
+    setPresetKeyB(init.presetKeyB || "default");
+    if (init.presetKeyA === "custom" && init.presetValuesA) {
+      setAppliedPresetValuesA(init.presetValuesA);
+    } else {
+      setAppliedPresetValuesA(PRESETS[init.presetKeyA] ?? PRESETS.default ?? DEFAULTS);
+    }
+    if (init.presetKeyB === "custom" && init.presetValuesB) {
+      setAppliedPresetValuesB(init.presetValuesB);
+    } else {
+      setAppliedPresetValuesB(PRESETS[init.presetKeyB] ?? PRESETS.default ?? DEFAULTS);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist URL on any change
   useEffect(() => {
-    writeUrlState({ scenarioA, scenarioB, surfaceFrom });
-  }, [scenarioA, scenarioB, surfaceFrom]);
+    writeUrlState({
+      scenarioA,
+      scenarioB,
+      surfaceFrom,
+      presetKeyA,
+      presetValuesA: presetKeyA === "custom" ? appliedPresetValuesA : null,
+      presetKeyB,
+      presetValuesB: presetKeyB === "custom" ? appliedPresetValuesB : null,
+    });
+  }, [
+    scenarioA,
+    scenarioB,
+    surfaceFrom,
+    presetKeyA,
+    appliedPresetValuesA,
+    presetKeyB,
+    appliedPresetValuesB,
+  ]);
 
-  const derivedA = useMemo(() => deriveScenario(scenarioA), [scenarioA]);
-  const derivedB = useMemo(() => deriveScenario(scenarioB), [scenarioB]);
+  const appliedPresetA =
+    presetKeyA === "custom"
+      ? appliedPresetValuesA
+      : PRESETS[presetKeyA] ?? PRESETS.default ?? DEFAULTS;
+  const appliedPresetB =
+    presetKeyB === "custom"
+      ? appliedPresetValuesB
+      : PRESETS[presetKeyB] ?? PRESETS.default ?? DEFAULTS;
+
+  const derivedA = useMemo(() => deriveScenario(scenarioA, appliedPresetA), [scenarioA, appliedPresetA]);
+  const derivedB = useMemo(() => deriveScenario(scenarioB, appliedPresetB), [scenarioB, appliedPresetB]);
 
   const surfaceScenario = surfaceFrom === "B" ? scenarioB : scenarioA;
   const surfaceDerived = surfaceFrom === "B" ? derivedB : derivedA;
+
+  const appliedPreset = surfaceFrom === "B" ? appliedPresetB : appliedPresetA;
 
   const heatmap = useMemo(() => {
     return computeHeatmapGrid({
@@ -143,12 +94,12 @@ export default function MaritimeCorridorApp() {
         shippingRatePer1000nm: surfaceScenario.shippingRatePer1000nm,
       },
       processEnergy: {
-        liquefactionPct: surfaceScenario.liquefactionPct,
-        processingPct: surfaceScenario.processingPct,
-        regasPct: surfaceScenario.regasPct,
+        liquefactionPct: appliedPreset.liquefactionEnergyPct,
+        processingPct: appliedPreset.processingEnergyPct,
+        regasPct: appliedPreset.regasEnergyPct,
       },
-      plantEfficiencyPct: surfaceScenario.plantEffPct,
-      coalBaseline_gPerKWh: surfaceScenario.coalBaseline_gPerKWh,
+      plantEfficiencyPct: appliedPreset.plantEfficiencyPct,
+      coalBaseline_gPerKWh: appliedPreset.coalBaseline_gPerKWh,
       ranges: DEFAULTS.heatmapRanges,
     });
   }, [surfaceScenario, surfaceDerived]);
@@ -158,7 +109,7 @@ export default function MaritimeCorridorApp() {
       {
         id: "A",
         label: "Scenario A",
-        leakagePct: scenarioA.upstreamLeakPct,
+        leakagePct: appliedPresetA.upstreamLeakPct,
         slipPct: scenarioA.methaneSlipPct,
         ringClass: "border-slate-900",
         fillClass: "bg-white",
@@ -166,17 +117,17 @@ export default function MaritimeCorridorApp() {
       {
         id: "B",
         label: "Scenario B",
-        leakagePct: scenarioB.upstreamLeakPct,
+        leakagePct: appliedPresetB.upstreamLeakPct,
         slipPct: scenarioB.methaneSlipPct,
         ringClass: "border-amber-600",
         fillClass: "bg-white",
       },
     ];
   }, [
-    scenarioA.upstreamLeakPct,
     scenarioA.methaneSlipPct,
-    scenarioB.upstreamLeakPct,
     scenarioB.methaneSlipPct,
+    appliedPresetA.upstreamLeakPct,
+    appliedPresetB.upstreamLeakPct,
   ]);
 
   const diff = useMemo(() => {
@@ -230,14 +181,42 @@ export default function MaritimeCorridorApp() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-6 space-y-6">
+        {/* Preset documentation */}
+        <section className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-blue-900 mb-1">About Assumption Presets</h3>
+              <p className="text-xs text-blue-800 mb-2">
+                Each scenario can use a different assumption preset. Presets control upstream leakage, process energy penalties (processing, liquefaction, regasification), power plant efficiency, and the coal baseline for comparison.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                <div className="bg-white rounded p-2 border border-blue-100">
+                  <div className="font-medium text-blue-900">Default</div>
+                  <div className="text-blue-700 mt-1">1.5% upstream leakage, 8% liquefaction penalty, 55% plant efficiency, 900 gCO₂e/kWh coal</div>
+                </div>
+                <div className="bg-white rounded p-2 border border-blue-100">
+                  <div className="font-medium text-blue-900">Optimistic</div>
+                  <div className="text-blue-700 mt-1">0.5% leakage, 6% liquefaction, 60% plant efficiency, 850 gCO₂e/kWh coal</div>
+                </div>
+                <div className="bg-white rounded p-2 border border-blue-100">
+                  <div className="font-medium text-blue-900">Pessimistic</div>
+                  <div className="text-blue-700 mt-1">3.0% leakage, 12% liquefaction, 40% plant efficiency, 1000 gCO₂e/kWh coal</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Controls */}
         <section className="bg-white rounded-lg border p-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Scenario controls (A/B)</h2>
               <p className="text-sm text-slate-600 mt-1">
-                Defaults remain placeholders. Export parameters to preserve exact
-                assumptions used.
+                Each scenario has its own assumption preset. Export parameters to preserve exact assumptions used.
               </p>
             </div>
 
@@ -255,6 +234,8 @@ export default function MaritimeCorridorApp() {
                   <option value="B">Scenario B</option>
                 </select>
               </div>
+
+              {/* Per-scenario presets live inside each ScenarioPanel now. */}
 
               <div className="flex items-center gap-2">
                 <button
@@ -284,6 +265,14 @@ export default function MaritimeCorridorApp() {
               scenario={scenarioA}
               setScenario={setScenarioA}
               derived={derivedA}
+              presetKey={presetKeyA}
+              appliedPreset={appliedPresetA}
+              onPresetChange={(k) => {
+                setPresetKeyA(k);
+                if (k !== "custom") setAppliedPresetValuesA(PRESETS[k] ?? PRESETS.default ?? DEFAULTS);
+              }}
+              appliedPresetValues={appliedPresetValuesA}
+              setAppliedPresetValues={setAppliedPresetValuesA}
             />
             <ScenarioPanel
               label="Scenario B"
@@ -291,6 +280,14 @@ export default function MaritimeCorridorApp() {
               scenario={scenarioB}
               setScenario={setScenarioB}
               derived={derivedB}
+              presetKey={presetKeyB}
+              appliedPreset={appliedPresetB}
+              onPresetChange={(k) => {
+                setPresetKeyB(k);
+                if (k !== "custom") setAppliedPresetValuesB(PRESETS[k] ?? PRESETS.default ?? DEFAULTS);
+              }}
+              appliedPresetValues={appliedPresetValuesB}
+              setAppliedPresetValues={setAppliedPresetValuesB}
             />
           </div>
         </section>
@@ -378,7 +375,8 @@ export default function MaritimeCorridorApp() {
   );
 }
 
-function ScenarioPanel({ label, accent, scenario, setScenario, derived }) {
+function ScenarioPanel({ label, accent, scenario, setScenario, derived, presetKey, appliedPreset, onPresetChange, appliedPresetValues, setAppliedPresetValues }) {
+  
   const corridor = derived.corridor;
   const engine = derived.engine;
 
@@ -400,7 +398,7 @@ function ScenarioPanel({ label, accent, scenario, setScenario, derived }) {
   }
 
   function exportJson() {
-    const obj = buildScenarioExport(label, scenario, derived);
+    const obj = buildScenarioExport(label, scenario, derived, presetKey, appliedPreset);
     downloadJson(
       `${label.replaceAll(" ", "_").toLowerCase()}.json`,
       obj
@@ -408,7 +406,7 @@ function ScenarioPanel({ label, accent, scenario, setScenario, derived }) {
   }
 
   function exportCsv() {
-    const rows = breakdownCsvRows(label, derived);
+    const rows = breakdownCsvRows(label, derived, presetKey, appliedPreset);
     downloadCsv(
       `${label.replaceAll(" ", "_").toLowerCase()}_breakdown.csv`,
       rows
@@ -417,6 +415,103 @@ function ScenarioPanel({ label, accent, scenario, setScenario, derived }) {
 
   return (
     <div className={`rounded-lg border ${panelBorder} p-4`}>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium">Assumption preset</label>
+          <select
+            className="rounded-md border px-3 py-2 text-sm"
+            value={presetKey}
+            onChange={(e) => onPresetChange(e.target.value)}
+          >
+            {Object.entries(PRESETS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v.label}
+              </option>
+            ))}
+            <option key="custom" value="custom">
+              Custom
+            </option>
+          </select>
+          <div className="text-xs text-slate-500 ml-2 max-w-xs">
+            Presets set leakage, process energy, plant efficiency and coal baseline.
+          </div>
+        </div>
+
+        {presetKey === "custom" ? (
+          <div className="ml-4 w-full max-w-lg">
+            <div className="text-sm font-medium mb-2">Custom assumptions</div>
+            <div className="flex items-center gap-2 mb-2">
+              <button
+                type="button"
+                title="Restore this scenario's preset values to Default"
+                className="rounded-md border px-2 py-1 text-xs hover:bg-slate-50"
+                onClick={() => setAppliedPresetValues(PRESETS.default)}
+              >
+                Reset to Default
+              </button>
+            </div>
+            <Slider
+              label="Upstream leakage (% of produced gas)"
+              min={0}
+              max={8}
+              step={0.1}
+              value={appliedPresetValues.upstreamLeakPct}
+              onChange={(v) => setAppliedPresetValues((p) => ({ ...p, upstreamLeakPct: v }))}
+              display={`${formatNumber(appliedPresetValues.upstreamLeakPct, 1)}%`}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+              <Slider
+                label="Processing (%)"
+                min={0}
+                max={8}
+                step={0.1}
+                value={appliedPresetValues.processingEnergyPct}
+                onChange={(v) => setAppliedPresetValues((p) => ({ ...p, processingEnergyPct: v }))}
+                display={`${formatNumber(appliedPresetValues.processingEnergyPct, 2)}%`}
+              />
+              <Slider
+                label="Liquefaction (%)"
+                min={0}
+                max={15}
+                step={0.1}
+                value={appliedPresetValues.liquefactionEnergyPct}
+                onChange={(v) => setAppliedPresetValues((p) => ({ ...p, liquefactionEnergyPct: v }))}
+                display={`${formatNumber(appliedPresetValues.liquefactionEnergyPct, 2)}%`}
+              />
+              <Slider
+                label="Regasification (%)"
+                min={0}
+                max={5}
+                step={0.05}
+                value={appliedPresetValues.regasEnergyPct}
+                onChange={(v) => setAppliedPresetValues((p) => ({ ...p, regasEnergyPct: v }))}
+                display={`${formatNumber(appliedPresetValues.regasEnergyPct, 2)}%`}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+              <Slider
+                label="Power plant efficiency (for WTW→Wire)"
+                min={35}
+                max={65}
+                step={0.5}
+                value={appliedPresetValues.plantEfficiencyPct}
+                onChange={(v) => setAppliedPresetValues((p) => ({ ...p, plantEfficiencyPct: v }))}
+                display={`${formatNumber(appliedPresetValues.plantEfficiencyPct, 1)}%`}
+              />
+              <Slider
+                label="Coal baseline (gCO₂e/kWh)"
+                min={650}
+                max={1200}
+                step={10}
+                value={appliedPresetValues.coalBaseline_gPerKWh}
+                onChange={(v) => setAppliedPresetValues((p) => ({ ...p, coalBaseline_gPerKWh: v }))}
+                display={`${formatNumber(appliedPresetValues.coalBaseline_gPerKWh, 0)} gCO₂e/kWh`}
+              />
+            </div>
+          </div>
+        ) : null}
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className={`text-sm font-semibold ${titleText}`}>{label}</div>
@@ -529,71 +624,7 @@ function ScenarioPanel({ label, accent, scenario, setScenario, derived }) {
           />
         </div>
 
-        <Slider
-          label="Upstream leakage (% of produced gas)"
-          min={0}
-          max={8}
-          step={0.1}
-          value={scenario.upstreamLeakPct}
-          onChange={(v) => set({ upstreamLeakPct: v })}
-          display={`${formatNumber(scenario.upstreamLeakPct, 1)}%`}
-        />
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Process energy penalties</label>
-
-          <Slider
-            label="Processing"
-            min={0}
-            max={8}
-            step={0.1}
-            value={scenario.processingPct}
-            onChange={(v) => set({ processingPct: v })}
-            display={`${formatNumber(scenario.processingPct, 2)}%`}
-          />
-          <Slider
-            label="Liquefaction"
-            min={0}
-            max={15}
-            step={0.1}
-            value={scenario.liquefactionPct}
-            onChange={(v) => set({ liquefactionPct: v })}
-            display={`${formatNumber(scenario.liquefactionPct, 2)}%`}
-          />
-          <Slider
-            label="Regasification"
-            min={0}
-            max={5}
-            step={0.05}
-            value={scenario.regasPct}
-            onChange={(v) => set({ regasPct: v })}
-            display={`${formatNumber(scenario.regasPct, 2)}%`}
-          />
-        </div>
-
-        <div className="space-y-2 border-t pt-4">
-          <Slider
-            label="Power plant efficiency (for WTW→Wire)"
-            min={35}
-            max={65}
-            step={0.5}
-            value={scenario.plantEffPct}
-            onChange={(v) => set({ plantEffPct: v })}
-            display={`${formatNumber(scenario.plantEffPct, 1)}%`}
-          />
-          <Slider
-            label="Coal baseline (gCO₂e/kWh)"
-            min={650}
-            max={1200}
-            step={10}
-            value={scenario.coalBaseline_gPerKWh}
-            onChange={(v) => set({ coalBaseline_gPerKWh: v })}
-            display={`${formatNumber(
-              scenario.coalBaseline_gPerKWh,
-              0
-            )} gCO₂e/kWh`}
-          />
-        </div>
+        {/* Advanced energy/process controls hidden for simplified UI */}
 
         <div className="text-xs text-slate-600">
           Current corridor:{" "}

@@ -21,7 +21,6 @@ export function downloadCsv(filename, rows) {
     downloadBlob(filename, new Blob([""], { type: "text/csv" }));
     return;
   }
-
   const headers = Object.keys(rows[0]);
   const esc = (v) => {
     const s = String(v ?? "");
